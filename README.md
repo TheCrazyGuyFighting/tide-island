@@ -4,7 +4,7 @@ Explore islands, catch fish, care for coastal animals, and head out on the water
 
 ## Play the early alpha
 
-**[Play Tide Island](https://lying-cbs-lecture-agenda.trycloudflare.com)**
+**[Play Tide Island](https://wide-published-underlying-effectiveness.trycloudflare.com)**
 
 Free to play in your browser. A desktop computer with a keyboard and mouse is recommended. No game account or installation is needed.
 
