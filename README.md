@@ -4,7 +4,7 @@ Explore islands, catch fish, care for coastal animals, and head out on the water
 
 ## Play the early alpha
 
-**[Play Tide Island](https://retain-routers-fiction-server.trycloudflare.com)**
+**[Play Tide Island](https://floating-top-requires-foster.trycloudflare.com)**
 
 Free to play in your browser. A desktop computer with a keyboard and mouse is recommended. No game account or installation is needed.
 
