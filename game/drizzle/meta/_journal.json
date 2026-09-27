@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789818821570,
+      "tag": "0000_nostalgic_jimmy_woo",
+      "breakpoints": true
+    }
+  ]
+}

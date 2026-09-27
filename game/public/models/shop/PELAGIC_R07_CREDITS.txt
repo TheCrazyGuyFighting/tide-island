@@ -1,0 +1,5 @@
+PELAGIC R07 speargun
+User-supplied original asset from Pelagic_R07_Complete_Pack.zip.
+The embedded GLB retains the supplied mesh, materials, textures, skeleton,
+and Idle, Fire and Reload animations. No source scripts are executed.
+Gameplay, tether, fish-hit detection and outfits are implemented by Tide Island.

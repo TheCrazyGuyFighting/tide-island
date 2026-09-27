@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import * as T from 'three';
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {addPetHomes} from '../lib/island-pet-homes';
+import {IslandPhysics} from '../lib/island-physics';
+import {ShopInventory} from '../lib/island-shop';
+Object.assign(globalThis,{document:{createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},strokeRect(){},fillText(){}})})}});
+GLTFLoader.prototype.loadAsync=async function(url:string){const bytes=fs.readFileSync(`public${url}`),loader=new GLTFLoader();loader.register(()=>({name:'TEST_TEXTURES',loadTexture:()=>Promise.resolve(new T.Texture())}));return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');};
+const scene=new T.Scene(),physics=new IslandPhysics([]),homes=addPetHomes(scene,physics,()=>false),inv=new ShopInventory(),wallet={coins:5000};
+homes.apply(inv.snapshot());assert(!homes.family.root.visible);assert(!physics.blocked(-30.5,3.4,37,false));
+for(const id of ['bird-home','family-aviary','family-nest','family-perch','family-feeder','pet-seagull','pet-seagull','food-can'])assert(inv.buy(id,wallet).ok);
+await homes.prepare(['pet-seagull']);homes.apply(inv.snapshot());assert.equal(homes.residentCount(),2);assert(homes.family.root.visible);assert(physics.blocked(-30.5,3.4,37,false));
+const a=scene.getObjectByName('resident-pet-seagull')!,b=scene.getObjectByName('resident-pet-seagull#2')!;assert.notEqual(a,b);
+assert(inv.startBrood('pet-seagull',null,{fishInBag:0}).ok);homes.apply(inv.snapshot());homes.update(0,.05,undefined,inv.familyBrood);
+assert.equal(a.parent,homes.family.root);assert.equal(b.parent,homes.family.root);assert.equal(homes.borrowBird('pet-seagull#2'),null);
+inv.familyBrood!.elapsed=45;homes.update(45,.05,undefined,inv.familyBrood);const chick=scene.getObjectByName('family-chick-1')!;assert(chick.visible);assert(chick.scale.x<1);
+inv.familyBrood!.elapsed=140;homes.ensureTransferGates();for(let i=0;i<30;i++)homes.update(140,.05,undefined,inv.familyBrood);assert(homes.transferReady());
+for(let i=0;i<241;i++){const change=inv.updateFamily(.05);if(change)homes.apply(inv.snapshot());homes.update(140+i*.05,.05,undefined,inv.familyBrood);}
+assert.equal(homes.residentCount(),4);assert.equal(a.parent,homes.groups.birds);assert.equal(b.parent,homes.groups.birds);assert(!scene.getObjectByName('family-chick-1'));
+assert(homes.borrowBird('pet-seagull#2'));homes.returnBird('pet-seagull#2');homes.dispose();
+console.log('PASS: paid nursery visibility/collision, two individual actors, parents in nursery, animated chicks, automatic opening gates, four adult residents and duplicate companion borrowing.');

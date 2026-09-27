@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import * as T from 'three';
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import {createSpeargunActor,loadSpeargunAsset} from '../lib/island-speargun-model';
+const bytes=fs.readFileSync('public/models/shop/meandros-b32.glb');assert(bytes.length<25*1024*1024);
+GLTFLoader.prototype.loadAsync=async function(){const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);loader.register(()=>({name:'TEST_TEXTURES',loadTexture:()=>Promise.resolve(new T.Texture())}));return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');};
+const asset=await loadSpeargunAsset('meandros-b32');assert.deepEqual(asset.animations.map(a=>a.name).sort(),['Fire','Idle','Reload']);
+const actor=await createSpeargunActor('meandros-b32'),other=await createSpeargunActor('meandros-b32');
+actor.update('ready',0,1/60);const spear=actor.root.getObjectByName('Spear')!,initial=spear.position.clone();assert(spear);
+actor.update('firing',.6,1/60);assert(spear.position.distanceTo(initial)>.1,'Supplied Fire must move the spear bone');
+assert(other.root.getObjectByName('Spear')!.position.distanceTo(initial)<.001,'Separate held and third-person skeletons');
+actor.update('retrieving',.2,1/60);assert.equal(actor.root.getObjectByName('B32_Spear')!.visible,false);
+actor.update('reloading',2.59,1/60);actor.update('ready',0,1/60);assert(actor.root.getObjectByName('B32_Spear')!.visible);
+const bounds=new T.Box3().setFromObject(actor.root),size=bounds.getSize(new T.Vector3());assert(size.z>size.x&&size.z>size.y,'Barrel must face forward');assert(size.z<3,'Life-sized tool, not an island-sized mesh');
+actor.dispose();other.dispose();console.log('PASS: lossless meshopt GLB decodes, all supplied animations play, independent rigs, spear visibility and forward-facing scale.',size.toArray());

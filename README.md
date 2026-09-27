@@ -36,3 +36,13 @@ Each room supports up to **four players**.
 ## Help improve the island
 
 Found a bug or have an idea? [Leave feedback](https://github.com/TheCrazyGuyFighting/tide-island/issues). Tell us what happened, what you expected, and which browser you used.
+
+## Game source
+
+The [game folder](game/) contains the current source code, models, textures, and regression tests. See [development instructions](game/README.md) to run a local copy. GitHub stores the code; the Play button above still connects to the host's Mac, not a GitHub-hosted multiplayer server.
+
+### Latest fix — 27 September 2026
+
+- Cleared the full cabin-to-harbour walkway so it no longer passes underneath the hill.
+- Solid terrain now takes priority over lower invisible deck floors, preventing the player from sinking into the ground.
+- Added regression tests for the visible terrain, walking both directions and along the edges, jumping, steep slopes, and cabin doors.
