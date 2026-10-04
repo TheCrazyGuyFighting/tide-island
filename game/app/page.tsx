@@ -22,6 +22,7 @@ import {isBirdTool} from '@/lib/island-bird-tools';
 import {IslandFamilyPanel} from '@/components/island-family-panel';
 import {isSpeargun} from '@/lib/island-speargun-types';
 import {IslandBirdPanel} from '@/components/island-bird-panel';
+import {returnPointerFocusToGame} from '@/lib/island-hud-focus';
 
 const initialStatus: IslandStatus = {bird:{id:null,phase:'home',message:'Open the aviary gate and whistle to call your bird.',doubleWindow:0,queued:false,petting:false},water:{depth:0,submerged:false,swimming:false,outfit:'regular'},spear:{phase:'ready',message:'Wear scuba gear, dive and aim at a fish · F to fire',remaining:0},navigation:{x:-29,z:54,heading:42,open:false,aboard:null,speed:0,rainforest:false},boatBusy:false, zone: 'Harbour beach', heading: 42, door: '', loading: 0, assetError: '', locked: false, health: 100, dead: false, notice: '', coins: 250, catches: 0, fishInBag:0, fishing: 'idle', fishingMessage: 'Face the water · F to cast', progress: 0, tension: .2, shop: {owned:[],equippedLure:null,hookEquipped:false,activeItem:'rod'},market:false,marketLoading:false,offer:null,cashier:false,care:null,petGates:{birds:false,sea:false},advice:'' };
 export default function Home() {
@@ -53,7 +54,7 @@ export default function Home() {
   const launch=(id:string)=>{if(view==='overview')changeView('first');setFleetOpen(false);void api.current?.launchBoat(id);};
   if(status.day?.exhausted)return <main className="exhausted-screen" role="alert"><p>Your energy ran out.<br/>Reload the game to start a new visit.</p></main>;
   return (
-    <main className={`island-game ${night ? 'night' : ''} ${status.market?'at-market':''} ${view==='overview'?'overview-mode':''}`}>
+    <main className={`island-game ${night ? 'night' : ''} ${status.market?'at-market':''} ${view==='overview'?'overview-mode':''}`} onClick={event => returnPointerFocusToGame(event.target instanceof Element ? event.target : null, event.detail, host.current?.querySelector('canvas') ?? null)}>
       <div className="world" ref={host} />
       <div className="view-vignette" />
       {status.day?.sleeping&&<div className="sleep-screen" role="status">Resting until morning…</div>}
@@ -111,6 +112,7 @@ export default function Home() {
           {['casting', 'waiting', 'bite', 'reeling'].includes(status.fishing) && <button className="cancel-cast" onClick={() => api.current?.cancelCast()} title="X to retrieve line">Retrieve</button>}
         </div>
       </section>}
+      {view !== 'overview' && !status.market && !status.care && !status.familyCare && !aboard && !status.dead && rodEquipped && !casting && status.castAim && <div className="cast-aim" aria-label="Cast aiming"><strong>{Math.abs(status.castAim.angle)}° {status.castAim.angle > 0 ? 'up' : status.castAim.angle < 0 ? 'down' : 'level'} · up to {status.castAim.range.toFixed(1)} m</strong><span>Aim 45° up for the longest cast.</span></div>}
       {view !== 'overview'&&!aboard&&!status.water.swimming && <button className="jump-button" aria-label="Jump" disabled={status.dead} onClick={() => api.current?.jump()}><ArrowUp size={18} /><span>Jump</span><kbd>Space</kbd></button>}
       {view!=='overview'&&!aboard&&status.water.swimming&&status.water.outfit==='scuba'&&<div className="dive-controls" aria-label="Diving controls">{[[' ','Rise','Space'],['c','Dive','C']].map(([key,label,hint])=><button key={key} disabled={status.dead} onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);api.current?.setMove(key,true);}} onPointerUp={()=>api.current?.setMove(key,false)} onPointerCancel={()=>api.current?.setMove(key,false)} onLostPointerCapture={()=>api.current?.setMove(key,false)} onKeyDown={e=>{if(e.key==='Enter')api.current?.setMove(key,true);}} onKeyUp={()=>api.current?.setMove(key,false)} onBlur={()=>api.current?.setMove(key,false)}>{label}<kbd>{hint}</kbd></button>)}</div>}
       <nav className="game-toolbar" aria-label="Island controls">

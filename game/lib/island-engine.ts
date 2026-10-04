@@ -22,7 +22,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { buildLandscape, material, mesh } from './island-landscape';
 import { CABIN, DOCK, clamp, groundHeight, waterHeight, walkingHeight } from './island-world';
 import { IslandPhysics, createBody } from './island-physics';
-import { FishingGame, castTarget, type FishAgent, type FishingPhase } from './island-fishing';
+import { FishingGame, castTarget, castRange, castArcHeight, castFlightPoint, CAST_DURATION, type FishAgent, type FishingPhase } from './island-fishing';
 import {addMarinePopulation} from './island-marine-population';
 import {IslandDay,type DaySnapshot} from './island-day-cycle';
 import {SeaCareController} from './island-sea-care';
@@ -58,7 +58,7 @@ type FamilyAPI={startSeaBrood:(species:string)=>ShopResult;applyLicence:(a:Licen
 type CareAPI={togglePetGate:(home:PetHome)=>ShopResult;closeCashier:()=>void;closeCare:()=>void;removeBasket:(id:string)=>void;checkout:()=>Promise<ShopResult>;askCashier:(topic:AdviceTopic)=>void;customiseCan:(design:CanDesign)=>ShopResult;feedResident:(id:string)=>ShopResult;refreshHabitat:()=>ShopResult};
 
 export type CameraMode = 'first' | 'third' | 'overview';
-export type IslandStatus = CoastalStatus & {trainer?:TrainerSnapshot;trainerBusy?:boolean;day?:DaySnapshot;storage?:boolean;seaCare?:{active:boolean;message:string};advancements?:AdvancementSnapshot;pelicanMeal?:{active:boolean;message:string};familyCare?:boolean;familyGateOpen?:boolean;bird:BirdStatus;water:{depth:number;submerged:boolean;swimming:boolean;outfit:Outfit};spear:SpearStatus; navigation:NavigationState;boatBusy:boolean;zone: string; heading: number; door: string; loading: number; assetError: string; locked: boolean; health: number; dead: boolean; notice: string; coins: number; catches: number; fishInBag:number; fishing: FishingPhase; fishingMessage: string; progress: number; tension: number; shop: ShopSnapshot; market:boolean; marketLoading:boolean; offer:string|null;cashier:boolean;care:PetHome|null;petGates:Record<PetHome,boolean>;advice:string };
+export type IslandStatus = CoastalStatus & {castAim?:{angle:number;range:number};trainer?:TrainerSnapshot;trainerBusy?:boolean;day?:DaySnapshot;storage?:boolean;seaCare?:{active:boolean;message:string};advancements?:AdvancementSnapshot;pelicanMeal?:{active:boolean;message:string};familyCare?:boolean;familyGateOpen?:boolean;bird:BirdStatus;water:{depth:number;submerged:boolean;swimming:boolean;outfit:Outfit};spear:SpearStatus; navigation:NavigationState;boatBusy:boolean;zone: string; heading: number; door: string; loading: number; assetError: string; locked: boolean; health: number; dead: boolean; notice: string; coins: number; catches: number; fishInBag:number; fishing: FishingPhase; fishingMessage: string; progress: number; tension: number; shop: ShopSnapshot; market:boolean; marketLoading:boolean; offer:string|null;cashier:boolean;care:PetHome|null;petGates:Record<PetHome,boolean>;advice:string };
 export type IslandAPI = CoastalAPI & CareAPI & FamilyAPI & {fundTrainer:(amount:number)=>ShopResult;pauseTrainer:()=>void;resumeTrainer:()=>ShopResult;reclaimTrainer:()=>ShopResult;selectSeafood:(id:string)=>ShopResult;serveSeafood:(pet:string)=>ShopResult;seaCommand:(pet:string,command:'lesson'|'recall'|'pet')=>ShopResult;storeItem:(id:string)=>ShopResult;retrieveItem:(id:string)=>ShopResult;closeStorage:()=>void;expandHabitat:(home:PetHome,tiles:number)=>ShopResult;whistle:()=>void;petBird:()=>void;selectBird:(id:string)=>void;returnBird:()=>void;launchBoat:(id:string)=>Promise<void>;boatAction:()=>Promise<void>;toggleChart:()=>void; setView: (mode: CameraMode) => void; setNight: (night: boolean) => void; setMist: (mist: boolean) => void; setDrift: (drift: boolean) => void; reset: () => void; interact: () => void; jump: () => void; fish: () => void; reel: (down: boolean) => void; cancelCast: () => void; setMove: (key: string, down: boolean) => void; travelMarket: () => boolean; closeOffer:()=>void; buy: (id: string) => Promise<ShopResult>; equip: (id: string) => ShopResult; hotbarPage:(delta:number)=>void; dispose: () => void };
 
 export function createIsland(host: HTMLDivElement, report: (s: IslandStatus) => void): IslandAPI {
@@ -295,7 +295,14 @@ export function createIsland(host: HTMLDivElement, report: (s: IslandStatus) => 
     if (!usesRod(inventory.activeItem)) { fishing.message = 'Select the fishing rod in slot 1 to cast.'; return; }
     if (!handRig.getObjectByName('rod-tip')) { fishing.message = 'Your rod is still loading…'; return; }
     if (fishing.phase === 'bite') fishing.hook();
-    else if (!fishing.active) { if (!body.grounded) { fishing.message = 'Land safely before casting.'; return; } castOrigin.copy(player.position).add(new T.Vector3(0, 1.65, 0)); fishing.rodLevel=rodLevel(inventory.expansion.rod);fishing.cast(castTarget(body, yaw, pitch)); }
+    else if (!fishing.active) {
+      if (!body.grounded) { fishing.message = 'Land safely before casting.'; return; }
+      castOrigin.set(body.x, body.y + 1.65, body.z);
+      const target = castTarget(body, yaw, pitch);
+      const distance = target ? Math.hypot(target.x-body.x, target.z-body.z) : 0;
+      fishing.rodLevel=rodLevel(inventory.expansion.rod);
+      fishing.cast(target, castArcHeight(pitch, distance));
+    }
   };
   const setView = (next: CameraMode) => {
     if(day.exhausted||day.sleeping>0)return;
@@ -575,9 +582,10 @@ export function createIsland(host: HTMLDivElement, report: (s: IslandStatus) => 
         if (view === 'first') { equipmentScene.updateMatrixWorld(true); tip.getWorldPosition(lineStart); camera.updateMatrixWorld(true); lineStart.applyMatrix4(camera.matrixWorld); }
         else { player.updateMatrixWorld(true); tip.getWorldPosition(lineStart); }
       } else lineStart.copy(player.position).add(new T.Vector3(0, 1.8, 0));
-      const t = fishing.phase === 'casting' ? clamp(1 - fishing.timer / .7, 0, 1) : 1;
-      float.position.copy(castOrigin).lerp(new T.Vector3(fishing.target.x, waterHeight(fishing.target.x, fishing.target.z, time), fishing.target.z), t);
-      float.position.y += Math.sin(t * Math.PI) * 2.5 + (fishing.phase === 'bite' ? Math.sin(time * 19) * .08 : 0);
+      const t = fishing.phase === 'casting' ? clamp(1 - fishing.timer / CAST_DURATION, 0, 1) : 1;
+      const flight = castFlightPoint(castOrigin, fishing.target, t, fishing.castArc);
+      float.position.set(flight.x, flight.y + waterHeight(fishing.target.x, fishing.target.z, time) * t, flight.z);
+      float.position.y += fishing.phase === 'bite' ? Math.sin(time * 19) * .08 : 0;
       if(fightingFish?.mouth){
         const mouth=fightingFish.mouth,effort=fightingFish.struggle!.strength;
         float.position.x=mouth.x;float.position.z=mouth.z;
@@ -607,6 +615,7 @@ export function createIsland(host: HTMLDivElement, report: (s: IslandStatus) => 
       status.water={depth,submerged:depth>1.67||inventory.outfit==='snorkel'&&depth>.8&&pitch<-.25,swimming:canSwim(inventory.outfit)&&depth>.8,outfit:inventory.outfit};status.spear=spear.snapshot();
       status.zone = inMarket?'Saltwater Market':remote?vessel?.aboard?`${remote.name} coast`:body.y>15?'Highland trail':'Landing beach':onRainforest(body.x,body.z)?vessel?.aboard?'Rainwild coast':body.y>10?'Rainforest canopy':'Rainwild landing beach':vessel?.aboard?'Open sea':view === 'overview' ? 'Tide Island' : Math.hypot(p.x - DOCK.x, p.z - 63) < 20 ? 'Harbour beach' : Math.hypot(p.x - 15, p.z - 19) < 36 ? 'Emerald lagoon' : p.y > 17 ? 'Windward ridge' : 'Wild coast';
       status.heading = ((-yaw * 180 / Math.PI) % 360 + 360) % 360;
+      status.castAim = {angle: Math.round(pitch * 180 / Math.PI), range: castRange(pitch)};
       status.door = view !== 'overview' && Math.hypot(p.x - CABIN.x, p.z - CABIN.z - CABIN.halfZ) < 3.1 ? (doorOpen ? 'Close cabin door' : 'Open cabin door') : '';
       if(view!=='overview'&&!body.dead){
         if(inMarket){const spot=nearestMarketSpot(p.x,p.z),vendor=nearbyVendor();status.door=Math.hypot(p.x-MARKET_RETURN.x,p.z-MARKET_RETURN.z)<3.8?'Return to Tide Island · free':spot?`Inspect ${equipmentName(spot.id)}`:vendor?`Talk to ${vendor.name}`:'';}

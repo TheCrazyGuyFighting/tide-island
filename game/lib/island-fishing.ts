@@ -7,6 +7,23 @@ export type HookStruggle = { elapsed:number; strength:number };
 export type FishAgent = { injured?:'struggling'|'dead';injuryTime?:number; id: string; name: string; position: Point; target: Point | null; caught: boolean; catchable: boolean; clearance: number; value: number; weight: number; length?: number; landing?: LandingPose | null; struggle?:HookStruggle|null; mouth?:Point|null; mouthLocal?:Point; rotation?:Point; reelTarget?:Point|null };
 export type FishingPhase = 'idle' | 'casting' | 'waiting' | 'bite' | 'reeling' | 'landing' | 'scooping' | 'caught' | 'missed';
 export const CATCH_LIFT_DURATION = 3.2;
+export const CAST_DURATION = .7, MAX_CAST_RANGE = 24;
+const castAngle = (pitch: number) => clamp(Number.isFinite(pitch) ? pitch : 0, -Math.PI / 2, Math.PI / 2);
+/** Gameplay range peaks at exactly 45 degrees above the horizon, at any height. */
+export function castRange(pitch: number) {
+  const angle = castAngle(pitch);
+  return angle < 0 ? 6 + 4 * Math.sin(angle) : 6 + (MAX_CAST_RANGE - 6) * Math.sin(2 * angle);
+}
+export function castArcHeight(pitch: number, distance: number) {
+  return distance * (.08 + .32 * Math.sin(Math.max(0, castAngle(pitch))));
+}
+/** The visible float and terrain obstruction checks use the same flight curve. */
+export function castFlightPoint(origin: Point, target: Point, progress: number, arcHeight: number): Point {
+  const t = clamp(progress, 0, 1);
+  return { x: origin.x + (target.x - origin.x) * t,
+    y: origin.y + (target.y - origin.y) * t + Math.sin(t * Math.PI) * arcHeight,
+    z: origin.z + (target.z - origin.z) * t };
+}
 export function waterPath(a: Point, b: Point, clearance: number) {
   for (let i = 0; i <= 24; i++) {
     const t = i / 24;
@@ -28,14 +45,16 @@ export function reelWaterTarget(from: Point, angler: Point, fish: FishAgent): Po
   return result;
 }
 export function castTarget(origin: Point, yaw: number, pitch: number): Point | null {
-  const range = clamp(18 + pitch * 10, 6, 24);
-  for (let distance = range; distance >= 4; distance -= .5) {
+  if (![origin.x, origin.y, origin.z, yaw, pitch].every(Number.isFinite)) return null;
+  const range = castRange(pitch), launch = { ...origin, y: origin.y + 1.65 };
+  for (let distance = range; distance >= 2; distance -= .5) {
     const target = { x: origin.x - Math.sin(yaw) * distance, y: 0, z: origin.z - Math.cos(yaw) * distance };
     if (terrainHeight(target.x, target.z) > -1) continue;
     let clear = true;
+    const arc = castArcHeight(pitch, distance);
     for (let i = 1; i < 24; i++) {
-      const t = i / 24, y = (origin.y + 1.65) * (1 - t) + Math.sin(t * Math.PI) * 2.5;
-      if (terrainHeight(origin.x + (target.x - origin.x) * t, origin.z + (target.z - origin.z) * t) > y - .15) { clear = false; break; }
+      const point = castFlightPoint(launch, target, i / 24, arc);
+      if (terrainHeight(point.x, point.z) > point.y - .15) { clear = false; break; }
     }
     if (clear) return target;
   }
@@ -43,6 +62,7 @@ export function castTarget(origin: Point, yaw: number, pitch: number): Point | n
 }
 export class FishingGame {
   phase: FishingPhase = 'idle'; target: Point | null = null; selected: FishAgent | null = null;
+  castArc = 2.5;
   landingFrom: Point | null = null;
   private reelFrom:Point|null=null;
   private reelEnd:Point|null=null;private reelAngler:Point|null=null;
@@ -69,11 +89,12 @@ export class FishingGame {
     if ((this.phase === 'landing'||this.phase==='scooping') && !force) return;
     this.release(); this.phase = 'idle'; this.target = null; this.progress = 0; this.tension = .2; this.message = message;
   }
-  cast(target: Point | null) {
+  cast(target: Point | null, arcHeight = 2.5) {
     if (this.active) return;
     this.release(); this.progress = 0; this.tension = .2; this.elapsed = 0;
     if (!target) { this.cancel('Aim toward open water from the shore or dock.'); return; }
-    this.target = { ...target }; this.phase = 'casting'; this.timer = .7; this.message = 'Casting…';
+    this.castArc = Number.isFinite(arcHeight) ? Math.max(0, arcHeight) : 2.5;
+    this.target = { ...target }; this.phase = 'casting'; this.timer = CAST_DURATION; this.message = 'Casting…';
   }
   hook() {
     if (this.phase !== 'bite') return;

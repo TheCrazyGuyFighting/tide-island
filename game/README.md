@@ -32,6 +32,16 @@ pnpm dlx tsx tests/cabin-terrain.test.ts
 
 The terrain and landscape implementations are in `lib/island-world.ts` and `lib/island-landscape.ts`.
 
+## Jump controls regression
+
+`tests/jump-recovery.test.ts` checks repeated sleeping and jumping at 20/30/60/144 FPS, free rest, exhaustion, and pointer-only HUD focus recovery without stealing keyboard or menu focus.
+
+```sh
+pnpm dlx tsx tests/jump-recovery.test.ts
+```
+
+The fixes are in `lib/island-day-cycle.ts`, `lib/island-hud-focus.ts`, and `app/page.tsx`. The previous camera-angle casting update is also included; `tests/cast-aim.test.ts` verifies that 45° gives the maximum range.
+
 ## What is excluded
 
 Private keys, environment files, user databases, local runtime state, generated builds, dependencies, temporary previews, and the original private Git history are not published.

@@ -41,8 +41,11 @@ Found a bug or have an idea? [Leave feedback](https://github.com/TheCrazyGuyFigh
 
 The [game folder](game/) contains the current source code, models, textures, and regression tests. See [development instructions](game/README.md) to run a local copy. GitHub stores the code; the Play button above still connects to the host's Mac, not a GitHub-hosted multiplayer server.
 
-### Latest fix — 27 September 2026
+### Latest update — Jump controls · 4 October 2026
 
-- Cleared the full cabin-to-harbour walkway so it no longer passes underneath the hill.
-- Solid terrain now takes priority over lower invisible deck floors, preventing the player from sinking into the ground.
-- Added regression tests for the visible terrain, walking both directions and along the edges, jumping, steep slopes, and cabin doors.
+- Fixed jumping becoming unavailable after sleeping, even when energy was full. Waking now clears the rest timer completely.
+- Mouse clicks on game controls now return keyboard focus to the scene, so Space keeps working for jumping instead of activating the last-clicked HUD button.
+- Keyboard navigation and typing in menus are preserved. Sleeping is still free, and normal jump restrictions during fishing, swimming, or boat travel remain unchanged.
+- Added regression tests for repeated sleep-and-jump cycles at 20, 30, 60, and 144 FPS, plus HUD focus recovery.
+
+Reload the game to load this update. The earlier cabin terrain and 45° casting improvements are included in the current source.
